@@ -31,8 +31,8 @@ describe('parseRazorpayEvent', () => {
     }));
   it('order.paid → paid', () =>
     expect(parseRazorpayEvent({ event: 'order.paid', payload: { payment: { entity: payment }, order: { entity: { id: 'order_1' } } } }).kind).toBe('paid'));
-  it('payment.failed → failed', () =>
-    expect(parseRazorpayEvent({ event: 'payment.failed', payload: { payment: { entity: payment } } })).toEqual({ kind: 'failed', rzpOrderId: 'order_1' }));
+  it('payment.failed is ignored: the buyer may retry in the same modal, so the hold must stay until it expires', () =>
+    expect(parseRazorpayEvent({ event: 'payment.failed', payload: { payment: { entity: payment } } })).toEqual({ kind: 'ignore' }));
   it('payments without an order (e.g. payment links) are ignored', () =>
     expect(parseRazorpayEvent({ event: 'payment.captured', payload: { payment: { entity: { id: 'pay_2', amount: 1 } } } }).kind).toBe('ignore'));
   it('other events are ignored', () => {

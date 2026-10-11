@@ -45,7 +45,7 @@ select is((select count(*)::int from notifications where order_id = (select v fr
 -- expiry + late payment with inventory left
 insert into ids select 'o2', pg_temp.mk(1);
 update holds set expires_at = now() - interval '1 minute' where order_id = (select v from ids where k = 'o2');
-select is(expire_holds(), 1, 'expire_holds releases one order');
+select ok(expire_holds() >= 1, 'expire_holds releases the expired order'); -- global fn: other expired rows may exist locally
 select is((select status from orders where id = (select v from ids where k = 'o2')), 'expired', 'order expired');
 select is(finalize_paid_order((select v from ids where k = 'o2'), 'pay_2'), 'issued', 'late payment still issues when seats remain');
 

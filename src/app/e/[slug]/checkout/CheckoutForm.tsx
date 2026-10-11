@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { SaleState } from '@/lib/availability';
+import { checkoutKey } from '@/lib/checkout-key';
 import { formatINR } from '@/lib/money';
 import { normalizeIndianPhone } from '@/lib/phone';
 import { quote } from '@/lib/pricing';
 
 type TicketType = { id: string; name: string; pricePaise: number; gstRate: number; maxPerOrder: number; state: SaleState; available: number };
 type EventInfo = { id: string; title: string; feeBps: number; feeFlatPaise: number; feeGstRate: number };
-type Pending = { orderId: string; razorpayOrderId: string; amountPaise: number; keyId: string; statusUrl: string };
+type Pending = { key: string; orderId: string; razorpayOrderId: string; amountPaise: number; keyId: string; statusUrl: string };
 type RazorpayCtor = new (opts: Record<string, unknown>) => { open(): void };
 
 const STATE_LABEL: Record<SaleState, string> = { on_sale: '', sold_out: 'Sold out', not_started: 'Not on sale yet', ended: 'Sales closed' };
@@ -72,7 +73,9 @@ export function CheckoutForm({ event, ticketTypes, utm }: { event: EventInfo; ti
     if (!normalizeIndianPhone(buyer.phone)) return setError('Enter a valid 10-digit Indian mobile number.');
     setBusy(true);
     try {
-      if (pending) return await openRazorpay(pending);
+      const key = checkoutKey(items, buyer);
+      // Reuse the open Razorpay order only if nothing changed; a corrected email must not keep the old one.
+      if (pending?.key === key) return await openRazorpay(pending);
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -88,7 +91,7 @@ export function CheckoutForm({ event, ticketTypes, utm }: { event: EventInfo; ti
       if (!res.ok) return setError(j.error ?? 'Something went wrong. Please try again.');
       const statusUrl = `/orders/${j.orderId}?k=${encodeURIComponent(j.accessKey)}`;
       if (j.free) return router.push(statusUrl);
-      const p: Pending = { orderId: j.orderId, razorpayOrderId: j.razorpayOrderId, amountPaise: j.amountPaise, keyId: j.keyId, statusUrl };
+      const p: Pending = { key, orderId: j.orderId, razorpayOrderId: j.razorpayOrderId, amountPaise: j.amountPaise, keyId: j.keyId, statusUrl };
       setPending(p);
       await openRazorpay(p);
     } catch (err) {

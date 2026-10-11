@@ -15,7 +15,6 @@ export function verifyRazorpaySignature(rawBody: string, signature: string | nul
 
 export type WebhookAction =
   | { kind: 'paid'; rzpOrderId: string; paymentId: string; amountPaise: number }
-  | { kind: 'failed'; rzpOrderId: string }
   | { kind: 'ignore' };
 
 type Payload = {
@@ -31,8 +30,8 @@ export function parseRazorpayEvent(body: unknown): WebhookAction {
     case 'payment.captured':
     case 'order.paid':
       return { kind: 'paid', rzpOrderId: p.order_id, paymentId: p.id, amountPaise: Number(p.amount) };
-    case 'payment.failed':
-      return { kind: 'failed', rzpOrderId: p.order_id };
+    // payment.failed is ignored on purpose: Razorpay lets the buyer retry inside the same modal, so the
+    // hold must survive until it expires (expire_holds), not be released on the first failed attempt.
     default:
       return { kind: 'ignore' };
   }

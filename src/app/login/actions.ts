@@ -1,5 +1,6 @@
 'use server';
 import { redirect } from 'next/navigation';
+import { safeNext } from '@/lib/redirect';
 import { allow, clientIp } from '@/lib/ratelimit';
 import { userDb } from '@/lib/supabase/server';
 
@@ -13,8 +14,7 @@ export async function login(_: LoginState, form: FormData): Promise<LoginState> 
     password: String(form.get('password') ?? ''),
   });
   if (error) return { error: 'Wrong email or password.' };
-  const next = String(form.get('next') ?? '');
-  redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/admin');
+  redirect(safeNext(String(form.get('next') ?? '')));
 }
 
 export async function logout() {

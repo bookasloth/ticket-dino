@@ -57,9 +57,6 @@ export async function POST(req: Request) {
         }
         await settlePayment(db, refundApi(), order.id, action.paymentId, action.amountPaise);
         after(() => sendPendingNotifications(order.id).catch((e) => report(e, { orderId: order.id })));
-      } else if (order && action.kind === 'failed') {
-        const { error: failError } = await db.rpc('fail_order', { p_order_id: order.id });
-        if (failError) throw failError;
       }
     }
 
