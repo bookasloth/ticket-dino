@@ -17,10 +17,11 @@ export async function sendPendingNotifications(orderId?: string): Promise<number
   const { data, error } = await db.rpc('claim_notifications', { p_order_id: orderId ?? null, p_limit: 20 });
   if (error) throw new Error(`claim_notifications: ${error.message}`);
   const rows = (data ?? []) as NotificationRow[];
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  let resend: Resend | null = null;
 
   for (const n of rows) {
     try {
+      resend ??= new Resend(process.env.RESEND_API_KEY); // throws without a key: record it on the row, don't strand claimed rows
       const d = await loadOrderEmailData(db, n.order_id);
       const { subject, html } = TEMPLATES[n.template](d);
       const attachments =
