@@ -7,8 +7,8 @@ if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 export default defineConfig({
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
-      'server-only': path.resolve(__dirname, 'tests/empty.ts'),
+      '@': path.resolve(import.meta.dirname, 'src'),
+      'server-only': path.resolve(import.meta.dirname, 'tests/empty.ts'),
     },
   },
   test: {
