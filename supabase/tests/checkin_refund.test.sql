@@ -25,7 +25,7 @@ insert into ids select 'o1', id::text from create_order(
     'buyer_phone', '+919876543210', 'subtotal_paise', 100000, 'fee_paise', 0, 'gst_paise', 0, 'total_paise', 100000),
   '[{"ticket_type_id":"00000000-0000-0000-0000-0000000000c1","qty":2,"unit_price_paise":50000,"gst_rate":18}]');
 select finalize_paid_order((select v::uuid from ids where k = 'o1'), 'pay_1');
-insert into ids select 'tok' || row_number() over (order by id), qr_token from tickets;
+insert into ids select 'tok' || row_number() over (order by id), qr_token from tickets where organizer_id = '00000000-0000-0000-0000-0000000000a1';
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000b2","role":"authenticated"}';
@@ -50,7 +50,7 @@ select throws_like($$select mark_order_refunded((select v::uuid from ids where k
 reset role;
 -- 2 sold, 1 was checked in → only the 1 unused seat returns to stock
 select is((select sold_count from ticket_types where id = '00000000-0000-0000-0000-0000000000c1'), 1, 'unused seat returned');
-select is((select count(*)::int from notifications where template = 'refund'), 1, 'refund email queued');
+select is((select count(*)::int from notifications where template = 'refund' and organizer_id = '00000000-0000-0000-0000-0000000000a1'), 1, 'refund email queued');
 
 select * from finish();
 rollback;

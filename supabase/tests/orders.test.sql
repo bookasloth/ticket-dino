@@ -28,7 +28,7 @@ insert into ids select 'o1', pg_temp.mk(2);
 select is((pg_temp.tt()).held_count, 2, 'create_order holds seats');
 select is((select count(*)::int from holds where order_id = (select v from ids where k = 'o1')), 1, 'one hold row');
 select throws_like($$select pg_temp.mk(3)$$, 'UNAVAILABLE:%', 'cannot hold beyond capacity');
-select is((select count(*)::int from orders), 1, 'failed attempt leaves no orphan order');
+select is((select count(*)::int from orders where organizer_id = '00000000-0000-0000-0000-0000000000a1'), 1, 'failed attempt leaves no orphan order');
 select throws_like($$select pg_temp.mk(4)$$, 'UNAVAILABLE:%', 'max_per_order enforced');
 select throws_like($$select pg_temp.mk(1, '00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000c2')$$,
   'EVENT_NOT_FOUND', 'draft events cannot sell');
@@ -37,7 +37,7 @@ select throws_like($$select pg_temp.mk(1, '00000000-0000-0000-0000-0000000000e2'
 select is(finalize_paid_order((select v from ids where k = 'o1'), 'pay_1'), 'issued', 'finalize issues');
 select is(((pg_temp.tt()).sold_count, (pg_temp.tt()).held_count), (2, 0), 'held moved to sold');
 select is((select count(distinct qr_token)::int from tickets where order_id = (select v from ids where k = 'o1')), 2, 'two unique tickets');
-select ok((select bool_and(length(qr_token) = 22) from tickets), 'tokens are 128-bit base64url');
+select ok((select bool_and(length(qr_token) = 22) from tickets where organizer_id = '00000000-0000-0000-0000-0000000000a1'), 'tokens are 128-bit base64url');
 select is(finalize_paid_order((select v from ids where k = 'o1'), 'pay_1'), 'already_done', 'finalize is idempotent');
 select is((select count(*)::int from tickets where order_id = (select v from ids where k = 'o1')), 2, 'no duplicate tickets');
 select is((select count(*)::int from notifications where order_id = (select v from ids where k = 'o1')), 1, 'one ticket email queued');

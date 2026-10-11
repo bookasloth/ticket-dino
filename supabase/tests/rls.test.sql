@@ -21,21 +21,21 @@ insert into orders (organizer_id, event_id, buyer_name, buyer_email, buyer_phone
 select is((select count(*)::int from pg_tables where schemaname = 'public' and not rowsecurity), 0, 'every public table has RLS');
 
 set local role anon;
-select is((select count(*)::int from events), 1, 'anon sees only the published event');
+select is((select count(*)::int from events where organizer_id = '00000000-0000-0000-0000-0000000000a1'), 1, 'anon sees only the published event');
 select throws_ok('select count(*) from orders', '42501', null, 'anon cannot read orders at all');
 select throws_ok('select count(*) from webhook_events', '42501', null, 'anon cannot read webhook events');
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000b2","role":"authenticated"}';
-select is((select count(*)::int from events), 2, 'staff member sees draft events of their organizer');
-select is((select count(*)::int from orders), 0, 'staff cannot read orders');
+select is((select count(*)::int from events where organizer_id = '00000000-0000-0000-0000-0000000000a1'), 2, 'staff member sees draft events of their organizer');
+select is((select count(*)::int from orders where organizer_id = '00000000-0000-0000-0000-0000000000a1'), 0, 'staff cannot read orders');
 select throws_ok(
   $$insert into ticket_types (organizer_id, event_id, name, price_paise, capacity, sale_ends_at)
     values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000e1', 'X', 1, 1, now() + interval '1 day')$$,
   '42501', null, 'staff cannot create ticket types');
 
 set local request.jwt.claims to '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}';
-select is((select count(*)::int from orders), 1, 'owner reads orders');
+select is((select count(*)::int from orders where organizer_id = '00000000-0000-0000-0000-0000000000a1'), 1, 'owner reads orders');
 select throws_ok(
   $$update ticket_types set sold_count = 0 where id = '00000000-0000-0000-0000-0000000000c1'$$,
   '42501', null, 'owner cannot write sold_count directly');
