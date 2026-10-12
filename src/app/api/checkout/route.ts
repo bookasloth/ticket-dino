@@ -15,5 +15,5 @@ export async function POST(req: Request) {
 
   const result = await placeOrder(checkoutDeps(), parsed.data);
   if (!result.ok) return Response.json({ error: result.error, ticketTypeId: result.ticketTypeId }, { status: result.status });
-  return Response.json(result.free ? result : { ...result, keyId: process.env.RAZORPAY_KEY_ID });
+  return Response.json(result);
 }

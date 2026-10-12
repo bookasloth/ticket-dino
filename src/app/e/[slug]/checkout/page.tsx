@@ -25,8 +25,9 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
   }));
 
   return (
-    <main className="mx-auto max-w-lg px-4 py-6">
-      <h1 className="text-xl font-bold">{event.title}</h1>
+    <main className="mx-auto max-w-lg px-4 py-12">
+      <p className="text-[11px] uppercase tracking-[0.3em] text-[#a3803f]">Checkout</p>
+      <h1 className="mt-2 font-display text-3xl leading-tight">{event.title}</h1>
       <p className="text-muted-foreground">{formatIST(event.starts_at, { dateStyle: 'full' })}</p>
       <CheckoutForm
         event={{ id: event.id, title: event.title, feeBps: event.fee_bps, feeFlatPaise: event.fee_flat_paise, feeGstRate: Number(event.fee_gst_rate) }}

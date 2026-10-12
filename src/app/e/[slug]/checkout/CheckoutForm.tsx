@@ -17,18 +17,21 @@ type TicketType = {
 };
 type Addon = { id: string; name: string; pricePaise: number; gstRate: number; maxPerOrder: number; available: number };
 type EventInfo = { id: string; title: string; feeBps: number; feeFlatPaise: number; feeGstRate: number };
-type Pending = { key: string; orderId: string; razorpayOrderId: string; amountPaise: number; keyId: string; statusUrl: string };
-type RazorpayCtor = new (opts: Record<string, unknown>) => { open(): void };
+type Pending = { key: string; orderId: string; sessionId: string; amountPaise: number; statusUrl: string };
+type ZPaymentsCtor = new (config: object) => {
+  requestPaymentMethod(options: object): Promise<{ payment_id: string }>;
+  close(): Promise<void>;
+};
 
 const STATE_LABEL: Record<SaleState, string> = { on_sale: '', sold_out: 'Sold out', not_started: 'Not on sale yet', ended: 'Sales closed' };
 
-function loadRazorpay(): Promise<RazorpayCtor> {
-  const w = window as unknown as { Razorpay?: RazorpayCtor };
-  if (w.Razorpay) return Promise.resolve(w.Razorpay);
+function loadZoho(): Promise<ZPaymentsCtor> {
+  const w = window as unknown as { ZPayments?: ZPaymentsCtor };
+  if (w.ZPayments) return Promise.resolve(w.ZPayments);
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    s.onload = () => resolve(w.Razorpay!);
+    s.src = 'https://static.zohocdn.com/zpay/zpay-js/v1/zpayments.js';
+    s.onload = () => resolve(w.ZPayments!);
     s.onerror = () => reject(new Error('Could not load the payment window.'));
     document.body.appendChild(s);
   });
@@ -78,22 +81,43 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
     setPending(null); // changing the basket needs a fresh order
   }
 
-  async function openRazorpay(p: Pending) {
-    const Razorpay = await loadRazorpay();
-    new Razorpay({
-      key: p.keyId,
-      order_id: p.razorpayOrderId,
-      amount: p.amountPaise,
-      currency: 'INR',
-      name: 'TicketDino',
-      description: event.title,
-      prefill: { name: buyer.name, email: buyer.email, contact: buyer.phone },
-      theme: { color: '#8b1e1e' },
-      handler: () => router.push(p.statusUrl),
-      modal: {
-        ondismiss: () => setError('Payment not completed. Your tickets are held for 10 minutes. Tap Pay to try again.'),
+  async function openPayment(p: Pending) {
+    const ZPayments = await loadZoho();
+    const zp = new ZPayments({
+      account_id: process.env.NEXT_PUBLIC_ZOHO_PAY_ACCOUNT_ID,
+      domain: 'IN',
+      otherOptions: {
+        api_key: process.env.NEXT_PUBLIC_ZOHO_PAY_API_KEY,
+        ...(process.env.NEXT_PUBLIC_ZOHO_PAY_SANDBOX === 'true' && { is_test_mode: true }),
       },
-    }).open();
+    });
+    try {
+      const { payment_id } = await zp.requestPaymentMethod({
+        amount: (p.amountPaise / 100).toFixed(2),
+        currency_code: 'INR',
+        currency_symbol: '₹',
+        payments_session_id: p.sessionId,
+        business: 'TicketDino',
+        description: event.title,
+        reference_number: p.orderId,
+        address: { name: buyer.name, email: buyer.email, phone: buyer.phone },
+      });
+      // The server re-checks with Zoho; the order page then shows tickets (or "processing" for slow UPI).
+      await fetch('/api/zoho/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ paymentId: payment_id }),
+      }).catch(() => null);
+      router.push(p.statusUrl);
+    } catch (e) {
+      if ((e as { code?: string }).code === 'widget_closed') {
+        setError('Payment not completed. Your tickets are held for 10 minutes. Tap Pay to try again.');
+      } else {
+        setError('Payment failed. No money was taken. Please try again.');
+      }
+    } finally {
+      await zp.close().catch(() => {});
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -103,8 +127,8 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
     setBusy(true);
     try {
       const key = `${checkoutKey([...items, ...extras], buyer)}|${coupon?.code ?? ''}`;
-      // Reuse the open Razorpay order only if nothing changed; a corrected email must not keep the old one.
-      if (pending?.key === key) return await openRazorpay(pending);
+      // Reuse the open payment session only if nothing changed; a corrected email must not keep the old one.
+      if (pending?.key === key) return await openPayment(pending);
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -122,9 +146,9 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
       if (!res.ok) return setError(j.error ?? 'Something went wrong. Please try again.');
       const statusUrl = `/orders/${j.orderId}?k=${encodeURIComponent(j.accessKey)}`;
       if (j.free) return router.push(statusUrl);
-      const p: Pending = { key, orderId: j.orderId, razorpayOrderId: j.razorpayOrderId, amountPaise: j.amountPaise, keyId: j.keyId, statusUrl };
+      const p: Pending = { key, orderId: j.orderId, sessionId: j.paymentSessionId, amountPaise: j.amountPaise, statusUrl };
       setPending(p);
-      await openRazorpay(p);
+      await openPayment(p);
     } catch (err) {
       setError(err instanceof Error && err.message.includes('payment window') ? err.message : 'Network problem. Check your connection and try again.');
     } finally {
@@ -135,11 +159,11 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
   return (
     <form onSubmit={submit} className="mt-6 space-y-6">
       <fieldset className="space-y-2">
-        <legend className="mb-2 font-semibold">Tickets</legend>
+        <legend className="mb-3 font-display text-xl">Tickets</legend>
         {ticketTypes.map((t) => {
           const max = Math.min(t.maxPerOrder, t.available);
           return (
-            <div key={t.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+            <div key={t.id} className="flex items-center justify-between gap-3 border-b py-3">
               <div>
                 <div className="font-medium">{t.name}</div>
                 <div className="text-sm text-muted-foreground">
@@ -147,7 +171,7 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
                   {t.state !== 'on_sale' && ` · ${STATE_LABEL[t.state]}`}
                 </div>
                 {t.groupMinQty && t.groupPct && (
-                  <div className="text-xs font-medium text-green-700">Book {t.groupMinQty}+ and save {t.groupPct}%</div>
+                  <div className="text-xs font-medium text-[#6b5a2e]">Book {t.groupMinQty}+ and save {t.groupPct}%</div>
                 )}
               </div>
               <select
@@ -168,9 +192,9 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
 
       {addons.length > 0 && (
         <fieldset className="space-y-2">
-          <legend className="mb-2 font-semibold">Add extras</legend>
+          <legend className="mb-3 font-display text-xl">Add extras</legend>
           {addons.map((a) => (
-            <div key={a.id} className="flex items-center justify-between gap-3 rounded-lg border border-dashed p-3">
+            <div key={a.id} className="flex items-center justify-between gap-3 border-b py-3">
               <div>
                 <div className="font-medium">{a.name}</div>
                 <div className="text-sm text-muted-foreground">{a.available > 0 ? formatINR(a.pricePaise) : 'Sold out'}</div>
@@ -196,12 +220,12 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
                  onChange={(e) => { setCode(e.target.value); if (coupon) { setCoupon(null); setPending(null); } }} />
           <Button type="button" variant="outline" disabled={!code.trim() || !items.length} onClick={applyCoupon}>Apply</Button>
         </div>
-        {coupon && <p className="text-sm font-medium text-green-700">{coupon.code} applied</p>}
+        {coupon && <p className="text-sm font-medium text-[#6b5a2e]">{coupon.code} applied</p>}
         {couponMsg && <p className="text-sm text-destructive">{couponMsg}</p>}
       </div>
 
       <fieldset className="space-y-3">
-        <legend className="mb-2 font-semibold">Your details</legend>
+        <legend className="mb-3 font-display text-xl">Your details</legend>
         <div className="space-y-1">
           <Label htmlFor="name">Full name</Label>
           <Input id="name" autoComplete="name" required maxLength={100} value={buyer.name}
@@ -231,7 +255,7 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
         <dl className="space-y-1 rounded-lg bg-muted p-4 text-sm">
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatINR(q.subtotalPaise)}</dd></div>
           {q.discountPaise > 0 && (
-            <div className="flex justify-between text-green-700"><dt>Discount</dt><dd>−{formatINR(q.discountPaise)}</dd></div>
+            <div className="flex justify-between text-[#6b5a2e]"><dt>Discount</dt><dd>−{formatINR(q.discountPaise)}</dd></div>
           )}
           <div className="flex justify-between"><dt>Booking fee</dt><dd>{formatINR(q.feePaise)}</dd></div>
           <div className="flex justify-between"><dt>GST</dt><dd>{formatINR(q.gstPaise)}</dd></div>

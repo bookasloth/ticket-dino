@@ -52,15 +52,15 @@ export type CheckoutDeps = {
   createOrder(
     order: Record<string, unknown>, items: Record<string, unknown>[], addons?: Record<string, unknown>[],
   ): Promise<{ id: string; accessKey: string }>;
-  createRazorpayOrder(orderId: string, amountPaise: number): Promise<string>;
-  attachRazorpayOrder(orderId: string, rzpOrderId: string): Promise<void>;
+  createPaymentSession(orderId: string, amountPaise: number): Promise<string>;
+  attachPaymentSession(orderId: string, rzpOrderId: string): Promise<void>;
   failOrder(orderId: string): Promise<void>;
   finalizeFree(orderId: string): Promise<void>;
 };
 
 export type CheckoutResult =
   | { ok: true; free: true; orderId: string; accessKey: string }
-  | { ok: true; free: false; orderId: string; accessKey: string; razorpayOrderId: string; amountPaise: number }
+  | { ok: true; free: false; orderId: string; accessKey: string; paymentSessionId: string; amountPaise: number }
   | { ok: false; status: 400 | 404 | 409 | 502; error: string; ticketTypeId?: string };
 
 const fail = (status: 400 | 404 | 409 | 502, error: string, ticketTypeId?: string): CheckoutResult => ({
@@ -145,13 +145,13 @@ export async function placeOrder(deps: CheckoutDeps, input: CheckoutInput): Prom
     return { ok: true, free: true, orderId: order.id, accessKey: order.accessKey };
   }
 
-  let razorpayOrderId: string;
+  let paymentSessionId: string;
   try {
-    razorpayOrderId = await deps.createRazorpayOrder(order.id, q.totalPaise);
-    await deps.attachRazorpayOrder(order.id, razorpayOrderId);
+    paymentSessionId = await deps.createPaymentSession(order.id, q.totalPaise);
+    await deps.attachPaymentSession(order.id, paymentSessionId);
   } catch {
     await deps.failOrder(order.id);
     return fail(502, 'Payments are having trouble right now. Please try again in a minute.');
   }
-  return { ok: true, free: false, orderId: order.id, accessKey: order.accessKey, razorpayOrderId, amountPaise: q.totalPaise };
+  return { ok: true, free: false, orderId: order.id, accessKey: order.accessKey, paymentSessionId, amountPaise: q.totalPaise };
 }

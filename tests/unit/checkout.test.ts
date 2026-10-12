@@ -15,8 +15,8 @@ function deps(over: Partial<CheckoutDeps> = {}) {
       ],
     })),
     createOrder: vi.fn(async () => ({ id: 'order-1', accessKey: 'key-1' })),
-    createRazorpayOrder: vi.fn(async () => 'order_rzp_1'),
-    attachRazorpayOrder: vi.fn(async () => {}),
+    createPaymentSession: vi.fn(async () => 'order_rzp_1'),
+    attachPaymentSession: vi.fn(async () => {}),
     failOrder: vi.fn(async () => {}),
     finalizeFree: vi.fn(async () => {}),
     ...over,
@@ -32,8 +32,8 @@ describe('placeOrder', () => {
   it('prices on the server and opens a Razorpay order for the exact total', async () => {
     const d = deps();
     const r = await placeOrder(d, input([{ ticketTypeId: GA, qty: 2 }]));
-    expect(r).toEqual({ ok: true, free: false, orderId: 'order-1', accessKey: 'key-1', razorpayOrderId: 'order_rzp_1', amountPaise: 122_720 });
-    expect(d.createRazorpayOrder).toHaveBeenCalledWith('order-1', 122_720);
+    expect(r).toEqual({ ok: true, free: false, orderId: 'order-1', accessKey: 'key-1', paymentSessionId: 'order_rzp_1', amountPaise: 122_720 });
+    expect(d.createPaymentSession).toHaveBeenCalledWith('order-1', 122_720);
     const [order, items] = vi.mocked(d.createOrder).mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>[]];
     expect(order).toMatchObject({ buyer_phone: '+919876543210', buyer_email: 'asha@example.com', total_paise: 122_720 });
     expect(items).toEqual([{ ticket_type_id: GA, qty: 2, unit_price_paise: 50_000, gst_rate: 18, discount_paise: 0 }]);
@@ -44,7 +44,7 @@ describe('placeOrder', () => {
     const r = await placeOrder(d, input([{ ticketTypeId: KIDS, qty: 2 }]));
     expect(r).toEqual({ ok: true, free: true, orderId: 'order-1', accessKey: 'key-1' });
     expect(d.finalizeFree).toHaveBeenCalledWith('order-1');
-    expect(d.createRazorpayOrder).not.toHaveBeenCalled();
+    expect(d.createPaymentSession).not.toHaveBeenCalled();
   });
 
   it('merges duplicate lines and enforces max per order', async () => {
@@ -77,7 +77,7 @@ describe('placeOrder', () => {
   });
 
   it('releases the hold when Razorpay is down', async () => {
-    const d = deps({ createRazorpayOrder: vi.fn(async () => { throw new Error('503'); }) });
+    const d = deps({ createPaymentSession: vi.fn(async () => { throw new Error('503'); }) });
     const r = await placeOrder(d, input([{ ticketTypeId: GA, qty: 1 }]));
     expect(r).toMatchObject({ ok: false, status: 502 });
     expect(d.failOrder).toHaveBeenCalledWith('order-1');

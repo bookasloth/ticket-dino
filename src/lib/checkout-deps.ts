@@ -2,9 +2,9 @@ import 'server-only';
 import { after } from 'next/server';
 import { CouponExhaustedError, UnavailableError, type CheckoutDeps } from './checkout';
 import { sendPendingNotifications } from './email/send';
-import { razorpay } from './razorpay';
 import { report } from './report';
 import { adminDb } from './supabase/admin';
+import { createPaymentSession } from './zoho';
 
 type TicketTypeRow = {
   id: string; name: string; price_paise: number; gst_rate: number; max_per_order: number;
@@ -62,23 +62,18 @@ export function checkoutDeps(): CheckoutDeps {
       const row = (data as { id: string; access_key: string }[])[0];
       return { id: row.id, accessKey: row.access_key };
     },
-    async createRazorpayOrder(orderId, amountPaise) {
+    async createPaymentSession(orderId, amountPaise) {
       try {
-        const o = await razorpay().orders.create({
-          amount: amountPaise,
-          currency: 'INR',
-          receipt: orderId,
-          notes: { app: 'ticketdino', order_id: orderId },
-        });
-        return o.id;
+        return await createPaymentSession(orderId, amountPaise, `TicketDino tickets, order ${orderId.slice(0, 8)}`);
       } catch (e) {
-        report(e, { orderId, step: 'razorpay.orders.create' });
+        report(e, { orderId, step: 'zoho.paymentsessions.create' });
         throw e;
       }
     },
-    async attachRazorpayOrder(orderId, rzpOrderId) {
-      const { error } = await db.from('orders').update({ razorpay_order_id: rzpOrderId }).eq('id', orderId);
-      if (error) throw new Error(`attach razorpay order: ${error.message}`);
+    async attachPaymentSession(orderId, sessionId) {
+      // ponytail: Zoho session id lives in the razorpay_order_id column (unique text); rename when Razorpay is dropped for good.
+      const { error } = await db.from('orders').update({ razorpay_order_id: sessionId }).eq('id', orderId);
+      if (error) throw new Error(`attach payment session: ${error.message}`);
     },
     async failOrder(orderId) {
       const { error } = await db.rpc('fail_order', { p_order_id: orderId });

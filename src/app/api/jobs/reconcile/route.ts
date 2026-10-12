@@ -1,16 +1,14 @@
 import { isCron } from '@/lib/cron';
-import { sendPendingNotifications } from '@/lib/email/send';
-import { settlePayment } from '@/lib/payments';
-import { capturedPayment, refundApi } from '@/lib/razorpay';
 import { report } from '@/lib/report';
 import { adminDb } from '@/lib/supabase/admin';
+import { settleZohoPayment, succeededPaymentForSession } from '@/lib/zoho';
 
 export const maxDuration = 60;
 
 /**
  * Brief rule 3: settle orders whose webhook never arrived. Unpaid orders are marked expired by
  * expire_holds after 10 minutes, so we look at expired/failed/pending orders 15 min – 3 h old.
- * ponytail: re-checks the whole window every run (≤100 Razorpay calls); add a reconciled_at cursor if volume grows.
+ * ponytail: re-checks the whole window every run (≤100 Zoho calls); add a reconciled_at cursor if volume grows.
  */
 export async function POST(req: Request) {
   if (!isCron(req)) return new Response('unauthorized', { status: 401 });
@@ -33,11 +31,10 @@ export async function POST(req: Request) {
   let settled = 0;
   for (const o of orders ?? []) {
     try {
-      const payment = await capturedPayment(o.razorpay_order_id);
+      const payment = await succeededPaymentForSession(o.razorpay_order_id); // holds the Zoho session id
       if (!payment) continue;
-      await settlePayment(db, refundApi(), o.id, payment.id, payment.amount);
+      await settleZohoPayment(payment.payment_id);
       settled++;
-      await sendPendingNotifications(o.id);
     } catch (e) {
       report(e, { job: 'reconcile', orderId: o.id });
     }
