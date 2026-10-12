@@ -24,8 +24,8 @@ async function webhook(request: APIRequestContext, eventId: string, rzpOrderId: 
 
 test('buyer pays, webhook confirms, tickets appear and scan once', async ({ page, request }) => {
   test.skip(!secret || !process.env.RAZORPAY_KEY_ID, 'needs Razorpay test keys in .env.local');
-  await page.goto('/e/dino-fest-2026');
-  await page.getByRole('link', { name: 'Get tickets' }).click();
+  await page.goto('/e/swar-sandhya-2026');
+  await page.getByRole('link', { name: 'Get tickets' }).first().click();
 
   await page.getByLabel('Quantity for General Admission').selectOption('2');
   await page.getByLabel('Full name').fill('E2E Buyer');
