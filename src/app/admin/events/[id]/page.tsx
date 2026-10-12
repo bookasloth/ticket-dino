@@ -11,9 +11,12 @@ import { PosterForm } from './PosterForm';
 import { StaffForm } from './StaffForm';
 import { StatusButtons } from './StatusButtons';
 import { TicketTypeForm, type TicketTypeValues } from './TicketTypeForm';
+import { AddonForm, CouponForm, CouponList, type CouponRow } from './SellingForms';
 
 type TT = { id: string; name: string; price_paise: number; gst_rate: number; capacity: number; sold_count: number; held_count: number;
-  max_per_order: number; sale_starts_at: string; sale_ends_at: string; sort: number };
+  max_per_order: number; sale_starts_at: string; sale_ends_at: string; sort: number;
+  group_min_qty: number | null; group_pct: number | null; unlocks_after_ticket_type_id: string | null };
+type AddonRow = { id: string; name: string; price_paise: number; gst_rate: number; capacity: number; sold_count: number; max_per_order: number; sort: number };
 
 export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,7 +24,7 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
   const { db, organizerId } = await requireMember();
   const { data: e } = await db
     .from('events')
-    .select('*, venue:venues(*), ticket_types(*)')
+    .select('*, venue:venues(*), ticket_types(*), addons(*), coupons(*)')
     .eq('id', id)
     .eq('organizer_id', organizerId)
     .maybeSingle();
@@ -39,10 +42,16 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
     id: t.id, name: t.name, price: paiseToRupeesInput(t.price_paise), gst_rate: String(t.gst_rate), capacity: String(t.capacity),
     max_per_order: String(t.max_per_order), sale_starts_at: utcToIstInput(t.sale_starts_at), sale_ends_at: utcToIstInput(t.sale_ends_at),
     sort: String(t.sort), sold: t.sold_count, held: t.held_count,
+    group_min_qty: t.group_min_qty === null ? '' : String(t.group_min_qty), group_pct: t.group_pct === null ? '' : String(t.group_pct),
+    unlocks_after_ticket_type_id: t.unlocks_after_ticket_type_id ?? '',
   });
+  const steps = ticketTypes.map((t) => ({ id: t.id, name: t.name }));
+  const addons = (e.addons as AddonRow[]).sort((a, b) => a.sort - b.sort);
+  const coupons = (e.coupons as CouponRow[]).sort((a, b) => a.code.localeCompare(b.code));
   const newTicketType: TicketTypeValues = {
     name: '', price: '', gst_rate: '18', capacity: '100', max_per_order: '10',
     sale_starts_at: utcToIstInput(new Date().toISOString()), sale_ends_at: utcToIstInput(e.starts_at), sort: String(ticketTypes.length + 1),
+    group_min_qty: '', group_pct: '', unlocks_after_ticket_type_id: '',
   };
 
   const [{ data: staffRows }, { data: assigned }] = await Promise.all([
@@ -77,8 +86,25 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Ticket types</h2>
-        {ticketTypes.map((t) => <TicketTypeForm key={t.id} eventId={e.id} values={toValues(t)} />)}
-        <TicketTypeForm key={`new-${ticketTypes.length}`} eventId={e.id} values={newTicketType} />
+        {ticketTypes.map((t) => <TicketTypeForm key={t.id} eventId={e.id} values={toValues(t)} steps={steps} />)}
+        <TicketTypeForm key={`new-${ticketTypes.length}`} eventId={e.id} values={newTicketType} steps={steps} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Coupons</h2>
+        <CouponList eventId={e.id} coupons={coupons} />
+        <CouponForm key={`cp-${coupons.length}`} eventId={e.id} ticketTypes={steps} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Extras (add-ons)</h2>
+        {addons.map((a) => (
+          <AddonForm key={a.id} eventId={e.id} values={{
+            id: a.id, name: a.name, price: paiseToRupeesInput(a.price_paise), gst_rate: String(a.gst_rate),
+            capacity: String(a.capacity), max_per_order: String(a.max_per_order), sold: a.sold_count,
+          }} />
+        ))}
+        <AddonForm key={`new-${addons.length}`} eventId={e.id} values={{ name: '', price: '', gst_rate: '18', capacity: '100', max_per_order: '4' }} />
       </section>
 
       <section className="space-y-3">

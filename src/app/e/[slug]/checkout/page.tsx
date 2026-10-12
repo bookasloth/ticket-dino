@@ -21,6 +21,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
   const ticketTypes = event.ticket_types.map((t) => ({
     id: t.id, name: t.name, pricePaise: t.price_paise, gstRate: Number(t.gst_rate),
     maxPerOrder: t.max_per_order, state: saleState(t), available: available(t),
+    groupMinQty: t.group_min_qty, groupPct: t.group_pct === null ? null : Number(t.group_pct),
   }));
 
   return (
@@ -30,6 +31,9 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
       <CheckoutForm
         event={{ id: event.id, title: event.title, feeBps: event.fee_bps, feeFlatPaise: event.fee_flat_paise, feeGstRate: Number(event.fee_gst_rate) }}
         ticketTypes={ticketTypes}
+        addons={event.addons.map((a) => ({
+          id: a.id, name: a.name, pricePaise: a.price_paise, gstRate: Number(a.gst_rate), maxPerOrder: a.max_per_order, available: Math.max(0, a.capacity - a.sold_count - a.held_count),
+        }))}
         utm={utm}
       />
     </main>

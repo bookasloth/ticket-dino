@@ -143,6 +143,25 @@ insert into event_staff (organizer_id, event_id, user_id)
 select 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', id, '22222222-2222-2222-2222-222222222222' from events;
 
 
+-- Pro demo: group discount, an early-bird price step, add-ons and coupons.
+update ticket_types set group_min_qty = 6, group_pct = 10 where name = 'General Admission';
+
+insert into ticket_types (id, organizer_id, event_id, name, price_paise, gst_rate, capacity, sold_count, max_per_order, sale_ends_at, sort)
+select 'dddddddd-dddd-dddd-dddd-dddddddddddd', organizer_id, event_id, 'Early Bird', 29900, 18, 100, 72, 10, sale_ends_at, 0
+from ticket_types where event_id = 'cccccccc-cccc-cccc-cccc-000000000001' and name = 'General Admission';
+update ticket_types set unlocks_after_ticket_type_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+where event_id = 'cccccccc-cccc-cccc-cccc-000000000001' and name = 'General Admission';
+
+insert into addons (organizer_id, event_id, name, price_paise, gst_rate, capacity, max_per_order, sort)
+select organizer_id, id, a.name, a.price, 18, a.cap, 4, a.sort from events
+cross join (values ('Car parking pass', 5000, 100, 1), ('Snack combo (samosa + chai)', 14900, 200, 2),
+                   ('Souvenir programme booklet', 9900, 150, 3)) a(name, price, cap, sort);
+
+insert into coupons (organizer_id, event_id, code, kind, value, max_discount_paise, max_uses)
+select organizer_id, id, 'DIWALI20', 'percent', 20, 20000, 200 from events;
+insert into coupons (organizer_id, event_id, code, kind, value, max_uses, valid_until)
+select organizer_id, id, 'FIRST100', 'flat', 10000, 50, now() + interval '20 days' from events;
+
 -- Job secrets read by pg_cron (Task 13). Local values only.
 select vault.create_secret('http://host.docker.internal:3000', 'app_url');
 select vault.create_secret('local-cron-secret', 'cron_secret');

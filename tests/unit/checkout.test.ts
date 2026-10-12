@@ -36,7 +36,7 @@ describe('placeOrder', () => {
     expect(d.createRazorpayOrder).toHaveBeenCalledWith('order-1', 122_720);
     const [order, items] = vi.mocked(d.createOrder).mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>[]];
     expect(order).toMatchObject({ buyer_phone: '+919876543210', buyer_email: 'asha@example.com', total_paise: 122_720 });
-    expect(items).toEqual([{ ticket_type_id: GA, qty: 2, unit_price_paise: 50_000, gst_rate: 18 }]);
+    expect(items).toEqual([{ ticket_type_id: GA, qty: 2, unit_price_paise: 50_000, gst_rate: 18, discount_paise: 0 }]);
   });
 
   it('issues free tickets without Razorpay', async () => {

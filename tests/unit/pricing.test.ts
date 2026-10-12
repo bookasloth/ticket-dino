@@ -7,7 +7,7 @@ describe('quote', () => {
   it('prices 2 × ₹500 with 18% GST and a 2% + ₹10 fee', () => {
     const q = quote([{ ticketTypeId: 'a', qty: 2, unitPricePaise: 50_000, gstRate: 18 }], fee);
     // line 100000; fee 2000 + 2000 = 4000; gst 18000 + 720
-    expect(q).toEqual({ subtotalPaise: 100_000, feePaise: 4_000, gstPaise: 18_720, totalPaise: 122_720 });
+    expect(q).toMatchObject({ subtotalPaise: 100_000, feePaise: 4_000, gstPaise: 18_720, totalPaise: 122_720 });
   });
 
   it('charges no fee on free tickets', () => {

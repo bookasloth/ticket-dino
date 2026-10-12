@@ -167,7 +167,12 @@ const ticketTypeSchema = z.object({
   sale_starts_at: z.string(),
   sale_ends_at: z.string(),
   sort: z.coerce.number().int().min(0).max(1000),
+  group_min_qty: z.string(),
+  group_pct: z.string(),
+  unlocks_after_ticket_type_id: z.union([z.literal(''), z.guid()]),
 });
+
+const optInt = (v: string) => (v === '' ? null : Number(v));
 
 export async function saveTicketType(_: ActionState, form: FormData): Promise<ActionState> {
   const { db, organizerId, event } = await ownEvent(field(form, 'event_id'));
@@ -185,13 +190,16 @@ export async function saveTicketType(_: ActionState, form: FormData): Promise<Ac
   const row = {
     name: v.name, price_paise: price, gst_rate: v.gst_rate, capacity: v.capacity, max_per_order: v.max_per_order,
     sale_starts_at: saleStarts, sale_ends_at: saleEnds, sort: v.sort,
+    group_min_qty: optInt(v.group_min_qty), group_pct: optInt(v.group_pct),
+    unlocks_after_ticket_type_id: v.unlocks_after_ticket_type_id || null,
   };
+  if ((row.group_min_qty === null) !== (row.group_pct === null)) return { error: 'Set both group size and group discount %, or neither.' };
   const id = field(form, 'id');
   const res = id
     ? await db.from('ticket_types').update(row).eq('id', id).eq('event_id', event.id).select('id')
     : await db.from('ticket_types').insert({ ...row, organizer_id: organizerId, event_id: event.id }).select('id');
   if (res.error) {
-    if (res.error.code === '23514') return { error: "Capacity can't be lower than tickets already sold or on hold." };
+    if (res.error.code === '23514') return { error: "Check the numbers: capacity can't drop below sold + held, group size is 2+, discount 1–50%." };
     return { error: res.error.message };
   }
   if (!res.data?.length) return { error: "You can't edit this ticket type." };
@@ -233,4 +241,73 @@ export async function setEventStaff(_: ActionState, form: FormData): Promise<Act
   }
   revalidatePath(`/admin/events/${event.id}`);
   return { ok: 'Gate staff updated.' };
+}
+
+const couponSchema = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,30}$/, 'use 3–30 letters, numbers, - or _'),
+  kind: z.enum(['percent', 'flat']),
+  value: z.string(),
+  max_discount: z.string(),
+  max_uses: z.string(),
+  valid_until: z.string(),
+  ticket_type_id: z.union([z.literal(''), z.guid()]),
+});
+
+export async function saveCoupon(_: ActionState, form: FormData): Promise<ActionState> {
+  const { db, organizerId, event } = await ownEvent(field(form, 'event_id'));
+  if (!event) return { error: 'Event not found.' };
+  const parsed = couponSchema.safeParse(Object.fromEntries(Object.keys(couponSchema.shape).map((k) => [k, field(form, k)])));
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const v = parsed.data;
+  const value = v.kind === 'percent' ? Number(v.value) : rupeesToPaise(v.value);
+  if (!value || value < 1 || (v.kind === 'percent' && (!Number.isInteger(value) || value > 100)))
+    return { error: v.kind === 'percent' ? 'Percent must be a whole number 1–100.' : 'Enter the rupees off, e.g. 100.' };
+  const cap = v.max_discount ? rupeesToPaise(v.max_discount) : null;
+  const until = v.valid_until ? toUtc(v.valid_until) : null;
+  if (v.valid_until && !until) return { error: 'Enter a valid expiry time.' };
+  const { error } = await db.from('coupons').insert({
+    organizer_id: organizerId, event_id: event.id, code: v.code, kind: v.kind, value,
+    max_discount_paise: cap || null, max_uses: v.max_uses ? Number(v.max_uses) : null, valid_until: until,
+    ticket_type_ids: v.ticket_type_id ? [v.ticket_type_id] : null,
+  });
+  if (error) return { error: error.code === '23505' ? 'That code already exists for this event.' : error.message };
+  revalidatePath(`/admin/events/${event.id}`);
+  return { ok: `Coupon ${v.code} created.` };
+}
+
+export async function toggleCoupon(_: ActionState, form: FormData): Promise<ActionState> {
+  const { db, event } = await ownEvent(field(form, 'event_id'));
+  if (!event) return { error: 'Event not found.' };
+  const { error } = await db.from('coupons').update({ active: field(form, 'active') === 'true' })
+    .eq('id', field(form, 'id')).eq('event_id', event.id);
+  if (error) return { error: error.message };
+  revalidatePath(`/admin/events/${event.id}`);
+  return { ok: 'Updated.' };
+}
+
+const addonSchema = z.object({
+  name: z.string().min(1).max(80),
+  price: z.string(),
+  gst_rate: z.coerce.number().min(0).max(40),
+  capacity: z.coerce.number().int().min(0).max(1_000_000),
+  max_per_order: z.coerce.number().int().min(1).max(50),
+});
+
+export async function saveAddon(_: ActionState, form: FormData): Promise<ActionState> {
+  const { db, organizerId, event } = await ownEvent(field(form, 'event_id'));
+  if (!event) return { error: 'Event not found.' };
+  const parsed = addonSchema.safeParse(Object.fromEntries(Object.keys(addonSchema.shape).map((k) => [k, field(form, k)])));
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const v = parsed.data;
+  const price = rupeesToPaise(v.price);
+  if (price === null) return { error: 'Price must be an amount in rupees, e.g. 149.' };
+  const row = { name: v.name, price_paise: price, gst_rate: v.gst_rate, capacity: v.capacity, max_per_order: v.max_per_order };
+  const id = field(form, 'id');
+  const res = id
+    ? await db.from('addons').update(row).eq('id', id).eq('event_id', event.id)
+    : await db.from('addons').insert({ ...row, organizer_id: organizerId, event_id: event.id });
+  if (res.error) return { error: res.error.code === '23514' ? "Capacity can't drop below sold + held." : res.error.message };
+  revalidatePath(`/e/${event.slug}`);
+  revalidatePath(`/admin/events/${event.id}`);
+  return { ok: 'Saved.' };
 }
