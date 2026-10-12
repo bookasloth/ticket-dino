@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${event.title} · ${event.organizer.name}`,
     description,
-    openGraph: { title: event.title, description, images: event.poster_url ? [event.poster_url] : [] },
+    openGraph: { title: event.title, description, ...(event.poster_url && { images: [event.poster_url] }) }, // else opengraph-image.tsx
   };
 }
 
@@ -40,6 +40,30 @@ export default async function EventPage({ params }: Props) {
   const min = Math.min(...event.ticket_types.map((t) => t.price_paise));
   const priceFrom = !Number.isFinite(min) ? null : min === 0 ? 'Free' : shortINR(min);
   const checkout = `/e/${event.slug}/checkout`;
+  const pageUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/e/${event.slug}`;
+  const share = `https://wa.me/?text=${encodeURIComponent(`${event.title}, ${formatIST(event.starts_at, { dateStyle: 'medium' })}. Book: ${pageUrl}`)}`;
+  // schema.org Event so search engines can list it
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: event.title,
+    startDate: event.starts_at,
+    endDate: event.ends_at,
+    eventStatus: event.status === 'cancelled' ? 'https://schema.org/EventCancelled' : 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    description: event.description ?? undefined,
+    image: event.poster_url ?? `${pageUrl}/opengraph-image`,
+    location: event.venue && {
+      '@type': 'Place', name: event.venue.name,
+      address: { '@type': 'PostalAddress', streetAddress: event.venue.address ?? undefined, addressLocality: event.venue.city ?? undefined, addressCountry: 'IN' },
+    },
+    organizer: { '@type': 'Organization', name: event.organizer.name },
+    offers: event.ticket_types.map((t, i) => ({
+      '@type': 'Offer', name: t.name, price: (t.price_paise / 100).toFixed(2), priceCurrency: 'INR', url: pageUrl,
+      availability: states[i] === 'sold_out' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+    })),
+  };
+  const group = event.ticket_types.find((t) => t.group_min_qty && t.group_pct);
 
   const facts = [
     { label: 'Date', value: formatIST(event.starts_at, { dateStyle: 'full', timeStyle: undefined }) },
@@ -49,6 +73,7 @@ export default async function EventPage({ params }: Props) {
 
   return (
     <main className="pb-28 lg:pb-16">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       {/* Banner */}
       <section className="bg-[#1a1412] text-[#f3ead8]">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-12 md:grid-cols-[1fr_1.1fr] md:py-20">
@@ -77,6 +102,7 @@ export default async function EventPage({ params }: Props) {
               <div className="mt-10 flex items-center gap-6">
                 <Link href={checkout} className="rounded-sm bg-[#c9a25c] px-8 py-3.5 text-xs font-medium uppercase tracking-[0.2em] text-[#1a1412] transition-colors hover:bg-[#d8b36e]">Get tickets</Link>
                 {priceFrom && <span className="text-sm font-light text-[#f3ead8]/60">from <span className="font-display text-2xl text-[#f3ead8]">{priceFrom}</span></span>}
+                <a href={share} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs uppercase tracking-[0.2em] text-[#f3ead8]/60 transition-colors hover:text-[#f3ead8]">Share ↗</a>
               </div>
             )}
           </div>
@@ -176,6 +202,19 @@ export default async function EventPage({ params }: Props) {
                 );
               })}
             </ul>
+            {group && (
+              <p className="mt-4 border-l-2 border-[#a3803f] pl-3 text-sm">Groups of {group.group_min_qty}+ save {Number(group.group_pct)}% on {group.name}.</p>
+            )}
+            {event.addons.length > 0 && (
+              <div className="mt-5">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Add at checkout</p>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {event.addons.map((a) => (
+                    <li key={a.id} className="flex justify-between"><span>{a.name}</span><span className="text-muted-foreground">{shortINR(a.price_paise)}</span></li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {event.ticket_types.some((t) => t.gst_rate > 0) && (
               <p className="mt-3 text-xs text-muted-foreground">Prices exclude GST and booking fee, shown before payment.</p>
             )}

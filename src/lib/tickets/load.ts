@@ -5,6 +5,8 @@ export type OrderEmailData = {
   orderNo: number;
   buyerName: string;
   totalPaise: number;
+  discountPaise: number;
+  extras: { name: string; qty: number }[];
   organizerName: string;
   event: { title: string; slug: string; startsAt: string; venue: string | null };
   tickets: { token: string; ticketType: string; attendeeName: string }[];
@@ -17,7 +19,7 @@ export async function loadOrderEmailData(db: SupabaseClient, orderId: string): P
   const { data, error } = await db
     .from('orders')
     .select(
-      `number, buyer_name, total_paise,
+      `number, buyer_name, total_paise, discount_paise, order_addons(qty, addon:addons(name)),
        event:events(title, slug, starts_at, venue:venues(name, city), organizer:organizers(name)),
        tickets(qr_token, attendee_name, created_at, ticket_type:ticket_types(name))`,
     )
@@ -25,7 +27,8 @@ export async function loadOrderEmailData(db: SupabaseClient, orderId: string): P
     .single();
   if (error || !data) throw new Error(`order ${orderId} not found: ${error?.message}`);
   const row = data as unknown as {
-    number: number; buyer_name: string; total_paise: number;
+    number: number; buyer_name: string; total_paise: number; discount_paise: number;
+    order_addons: { qty: number; addon: { name: string } }[];
     event: { title: string; slug: string; starts_at: string; venue: Venue; organizer: { name: string } };
     tickets: { qr_token: string; attendee_name: string; created_at: string; ticket_type: { name: string } }[];
   };
@@ -33,6 +36,8 @@ export async function loadOrderEmailData(db: SupabaseClient, orderId: string): P
     orderNo: row.number,
     buyerName: row.buyer_name,
     totalPaise: row.total_paise,
+    discountPaise: row.discount_paise,
+    extras: row.order_addons.map((a) => ({ name: a.addon.name, qty: a.qty })),
     organizerName: row.event.organizer.name,
     event: { title: row.event.title, slug: row.event.slug, startsAt: row.event.starts_at, venue: venueLabel(row.event.venue) },
     tickets: row.tickets

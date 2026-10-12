@@ -26,6 +26,8 @@ export function ticketsEmail(d: OrderEmailData) {
         `<p>Hi ${escapeHtml(d.buyerName)}, here are your tickets for order TD-${d.orderNo}.</p>` +
         when(d) +
         `<ul>${links}</ul>` +
+        (d.extras.length ? `<p><strong>Extras:</strong> ${d.extras.map((x) => `${x.qty} × ${escapeHtml(x.name)}`).join(', ')}. Collect them at the counter with this email.</p>` : '') +
+        (d.discountPaise > 0 ? `<p>You saved ${formatINR(d.discountPaise)} on this order.</p>` : '') +
         `<p>Show the QR code at the gate. Each code works once. Your tickets are also attached as a PDF.</p>`,
     ),
   };

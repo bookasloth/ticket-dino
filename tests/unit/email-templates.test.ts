@@ -7,6 +7,8 @@ const d: OrderEmailData = {
   buyerName: '<script>alert(1)</script>',
   totalPaise: 122_720,
   organizerName: 'Timewheel Events',
+  discountPaise: 0,
+  extras: [],
   event: { title: 'Dino Fest', slug: 'dino-fest', startsAt: '2026-11-10T05:30:00Z', venue: 'Jio World Garden, Mumbai' },
   tickets: [
     { token: 'AAAAAAAAAAAAAAAAAAAAAA', ticketType: 'VIP', attendeeName: 'A' },

@@ -252,20 +252,20 @@ export function CheckoutForm({ event, ticketTypes, addons = [], utm }: {
       </fieldset>
 
       {q && (
-        <dl className="space-y-1 rounded-lg bg-muted p-4 text-sm">
+        <dl className="space-y-1.5 border-y py-5 text-sm">
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatINR(q.subtotalPaise)}</dd></div>
           {q.discountPaise > 0 && (
             <div className="flex justify-between text-[#6b5a2e]"><dt>Discount</dt><dd>−{formatINR(q.discountPaise)}</dd></div>
           )}
           <div className="flex justify-between"><dt>Booking fee</dt><dd>{formatINR(q.feePaise)}</dd></div>
           <div className="flex justify-between"><dt>GST</dt><dd>{formatINR(q.gstPaise)}</dd></div>
-          <div className="flex justify-between border-t pt-1 font-semibold"><dt>Total</dt><dd>{formatINR(q.totalPaise)}</dd></div>
+          <div className="flex justify-between border-t pt-3 font-display text-xl"><dt>Total</dt><dd>{formatINR(q.totalPaise)}</dd></div>
         </dl>
       )}
 
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
-      <Button type="submit" size="lg" className="w-full" disabled={!q || busy}>
+      <Button type="submit" size="lg" className="h-12 w-full rounded-sm text-xs uppercase tracking-[0.2em]" disabled={!q || busy}>
         {busy ? 'Please wait…' : !q ? 'Choose tickets' : q.totalPaise === 0 ? 'Get free tickets' : `Pay ${formatINR(q.totalPaise)}`}
       </Button>
       {pending && (
