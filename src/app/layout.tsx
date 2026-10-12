@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Bodoni_Moda, Poppins } from 'next/font/google';
+import { Instrument_Serif, Poppins } from 'next/font/google';
 import { VENUE } from '@/lib/venue';
 import './globals.css';
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['300', '400', '500', '600'], variable: '--font-sans' });
-const bodoni = Bodoni_Moda({ subsets: ['latin'], variable: '--font-display' });
+const instrument = Instrument_Serif({ subsets: ['latin'], weight: '400', style: ['normal', 'italic'], variable: '--font-display' });
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en-IN">
-      <body className={`${poppins.variable} ${bodoni.variable} flex min-h-dvh flex-col bg-background font-sans text-foreground antialiased`}>
+      <body className={`${poppins.variable} ${instrument.variable} flex min-h-dvh flex-col bg-background font-sans text-foreground antialiased`}>
         <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-8 px-4 py-4">
             <Link href="/" className="leading-tight">
