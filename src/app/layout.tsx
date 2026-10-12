@@ -59,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
             <nav className="flex flex-col gap-2">
               <p className="text-xs uppercase tracking-[0.25em] text-[#c9a25c]">Help</p>
+              <Link href="/tour" className="hover:text-white">Product tour</Link>
               <Link href="/faq" className="hover:text-white">FAQ</Link>
               <Link href="/terms" className="hover:text-white">Terms</Link>
               <Link href="/privacy" className="hover:text-white">Privacy</Link>
