@@ -9,7 +9,7 @@ export default function RefundPolicy() {
       <h2>Payment problems</h2>
       <p>If money was debited but no ticket was issued, it is refunded automatically, usually within 5–7 working days.</p>
       <h2>How refunds reach you</h2>
-      <p>Refunds go back to the original payment method through Razorpay. Banks usually take 5–7 working days.</p>
+      <p>Refunds go back to the original payment method through Zoho Payments. Banks usually take 5–7 working days.</p>
     </LegalPage>
   );
 }

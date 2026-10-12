@@ -7,7 +7,7 @@ export default function Terms() {
       <h2>Tickets</h2>
       <p>A ticket admits one person to the event named on it. Each QR code can be scanned once. Do not share it: the first scan wins.</p>
       <h2>Payments</h2>
-      <p>Payments are processed by Razorpay. We never see or store your card details. Prices include the booking fee and GST shown at checkout.</p>
+      <p>Payments are processed by Zoho Payments. We never see or store your card details. Prices include the booking fee and GST shown at checkout.</p>
       <h2>Event changes</h2>
       <p>The organizer may change the time or venue. If an event is cancelled you get a full refund.</p>
       <h2>Entry</h2>
